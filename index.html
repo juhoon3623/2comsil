@@ -448,8 +448,15 @@ function iconSvg(key, strokeW){ return `<svg viewBox="0 0 24 24" fill="none" str
 
 // ── 대여 시스템: 구글 시트 연동 ──
 // 아래 URL을 배포된 구글 앱스 스크립트 웹앱 주소로 교체하세요.
-const API_URL = "https://script.google.com/macros/s/AKfycbxx2cVToFWu2z8f4D8vOywCRFU0HAiZjGf8KGUWtRYof5gK_mO_Zt9YgDeHXgt8yPCo/exec";
-const ADMIN_PW = "1311913119@";
+const API_URL = "https://script.google.com/macros/s/AKfycbxEnHP1H5BHzF9Wx3kByWMhO7QYjoImk6zdZ5xNop-vhEK0-mn3yfPh9itAzPA_hhO_/exec";
+const ADMIN_PW_HASH = "baf0578a1eb3c0a83048a73edfeb8a4bb144bfe80ba3aedbbe18473f9461d1cf";
+let adminAuthHash = null; // 로그인 성공 시 이 값으로 이후 요청을 인증함
+
+async function sha256Hex(str){
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
 
 let currentStudentId = null; // 로그인한 학번 (세션 동안만 유지, 새로고침하면 초기화됨)
 let pendingAction = null;    // 로그인 팝업 이후 실행할 대여/반납 동작
@@ -492,11 +499,13 @@ async function changeStock(name, action){
     const data = await res.json();
     if(data.ok){
       STOCK[name] = { total: data.total, borrowed: data.borrowed };
-    } else if(before){
-      STOCK[name] = before; // 실패 시 되돌리기
+    } else {
+      if(before) STOCK[name] = before; // 실패 시 되돌리기
+      alert("저장에 실패했습니다: " + (data.error || "알 수 없는 오류") + "\n다시 시도해 주세요.");
     }
   }catch(err){
     if(before) STOCK[name] = before;
+    alert("서버에 연결하지 못해 저장되지 않았습니다.\n(" + err.message + ")");
   }
   render(document.getElementById('search').value);
   if(currentModalItem) refreshModalStock(currentModalItem);
@@ -688,8 +697,10 @@ document.getElementById('adminLink').addEventListener('click', () => {
   setTimeout(() => adminPwInput.focus(), 50);
 });
 document.getElementById('adminPwCancel').addEventListener('click', () => adminPwOverlay.classList.remove('open'));
-document.getElementById('adminPwConfirm').addEventListener('click', () => {
-  if(adminPwInput.value === ADMIN_PW){
+document.getElementById('adminPwConfirm').addEventListener('click', async () => {
+  const typedHash = await sha256Hex(adminPwInput.value);
+  if(typedHash === ADMIN_PW_HASH){
+    adminAuthHash = typedHash;
     adminPwOverlay.classList.remove('open');
     openAdminPanel();
   } else {
@@ -729,23 +740,31 @@ document.getElementById('adminSearch').addEventListener('input', e => renderAdmi
 
 async function adminSetTotal(name, total){
   if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0){ alert("아직 구글시트 연결 전이라 저장이 안 됩니다."); return; }
-  const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_set_total", name, total, password: ADMIN_PW }) });
-  const data = await res.json();
-  if(data.ok){ STOCK[name] = { total: data.total, borrowed: data.borrowed }; render(document.getElementById('search').value); renderAdminList(); }
-  else alert(data.error || "저장 실패");
+  try{
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_set_total", name, total, password: adminAuthHash }) });
+    const data = await res.json();
+    if(data.ok){ STOCK[name] = { total: data.total, borrowed: data.borrowed }; render(document.getElementById('search').value); renderAdminList(); }
+    else alert(data.error || "저장 실패");
+  }catch(err){
+    alert("서버에 연결하지 못해 저장되지 않았습니다.\n(" + err.message + ")");
+  }
 }
 async function adminResetBorrowed(name){
   if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0){ alert("아직 구글시트 연결 전이라 저장이 안 됩니다."); return; }
-  const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_reset", name, password: ADMIN_PW }) });
-  const data = await res.json();
-  if(data.ok){ STOCK[name] = { total: data.total, borrowed: data.borrowed }; render(document.getElementById('search').value); renderAdminList(); }
-  else alert(data.error || "처리 실패");
+  try{
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_reset", name, password: adminAuthHash }) });
+    const data = await res.json();
+    if(data.ok){ STOCK[name] = { total: data.total, borrowed: data.borrowed }; render(document.getElementById('search').value); renderAdminList(); }
+    else alert(data.error || "처리 실패");
+  }catch(err){
+    alert("서버에 연결하지 못해 저장되지 않았습니다.\n(" + err.message + ")");
+  }
 }
 async function loadAdminLog(){
   const logEl = document.getElementById('adminLog');
   if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0){ logEl.textContent = "아직 구글시트 연결 전입니다."; return; }
   try{
-    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_get_log", password: ADMIN_PW }) });
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_get_log", password: adminAuthHash }) });
     const data = await res.json();
     if(data.ok && data.log){
       logEl.innerHTML = data.log.slice(-30).reverse().map(r =>
