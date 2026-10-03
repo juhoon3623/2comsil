@@ -461,15 +461,9 @@ function iconSvg(key, strokeW){ return `<svg viewBox="0 0 24 24" fill="none" str
 
 // ── 대여 시스템: 구글 시트 연동 ──
 // 아래 URL을 배포된 구글 앱스 스크립트 웹앱 주소로 교체하세요.
-const API_URL = "https://script.google.com/macros/s/AKfycbxEnHP1H5BHzF9Wx3kByWMhO7QYjoImk6zdZ5xNop-vhEK0-mn3yfPh9itAzPA_hhO_/exec";
-const ADMIN_PW_HASH = "baf0578a1eb3c0a83048a73edfeb8a4bb144bfe80ba3aedbbe18473f9461d1cf";
-let adminAuthHash = null; // 로그인 성공 시 이 값으로 이후 요청을 인증함
-
-async function sha256Hex(str){
-  const enc = new TextEncoder().encode(str);
-  const buf = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
+const API_URL = "https://script.google.com/macros/s/AKfycbyRycV94klQNlZPlwhA85DjuZydjSF_KRF7ERLw7sTMCAZ8VkqPYeYelMLtYXrdwuJd/exec";
+// 관리자 비밀번호는 사이트에 저장하지 않고 구글 서버(Apps Script)에서만 확인함
+let adminPassword = null; // 관리자 로그인에 성공하면 관리자 창이 열려 있는 동안만 기억함
 
 let currentStudentId = null; // 로그인한 학번 (세션 동안만 유지, 새로고침하면 초기화됨)
 let pendingAction = null;    // 로그인 팝업 이후 실행할 대여/반납 동작
@@ -711,17 +705,43 @@ document.getElementById('adminLink').addEventListener('click', () => {
 });
 document.getElementById('adminPwCancel').addEventListener('click', () => adminPwOverlay.classList.remove('open'));
 document.getElementById('adminPwConfirm').addEventListener('click', async () => {
-  const typedHash = await sha256Hex(adminPwInput.value);
-  if(typedHash === ADMIN_PW_HASH){
-    adminAuthHash = typedHash;
-    adminPwOverlay.classList.remove('open');
-    openAdminPanel();
-  } else {
+  const typed = adminPwInput.value;
+  const confirmBtn = document.getElementById('adminPwConfirm');
+  adminPwError.style.display = "none";
+  if(!typed){
+    adminPwError.textContent = "비밀번호를 입력해 주세요.";
     adminPwError.style.display = "block";
+    return;
+  }
+  if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0){
+    adminPwError.textContent = "구글 시트 연결 전에는 관리자 모드를 사용할 수 없습니다.";
+    adminPwError.style.display = "block";
+    return;
+  }
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = "확인 중...";
+  try{
+    // 비밀번호 확인은 서버(Apps Script)에서만 함 — 사이트 소스에는 비밀번호 정보가 없음
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_login", password: typed }) });
+    const data = await res.json();
+    if(data.ok){
+      adminPassword = typed;
+      adminPwOverlay.classList.remove('open');
+      openAdminPanel();
+    } else {
+      adminPwError.textContent = data.error || "비밀번호가 올바르지 않습니다.";
+      adminPwError.style.display = "block";
+    }
+  }catch(err){
+    adminPwError.textContent = "서버에 연결하지 못했습니다. (" + err.message + ")";
+    adminPwError.style.display = "block";
+  }finally{
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "확인";
   }
 });
 adminPwInput.addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('adminPwConfirm').click(); });
-document.getElementById('adminClose').addEventListener('click', () => adminOverlay.classList.remove('open'));
+document.getElementById('adminClose').addEventListener('click', () => { adminOverlay.classList.remove('open'); adminPassword = null; });
 
 function renderAdminList(filter){
   const q = (filter||"").trim().toLowerCase();
@@ -754,7 +774,7 @@ document.getElementById('adminSearch').addEventListener('input', e => renderAdmi
 async function adminSetTotal(name, total){
   if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0){ alert("아직 구글시트 연결 전이라 저장이 안 됩니다."); return; }
   try{
-    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_set_total", name, total, password: adminAuthHash }) });
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_set_total", name, total, password: adminPassword }) });
     const data = await res.json();
     if(data.ok){ STOCK[name] = { total: data.total, borrowed: data.borrowed }; render(document.getElementById('search').value); renderAdminList(); }
     else alert(data.error || "저장 실패");
@@ -765,7 +785,7 @@ async function adminSetTotal(name, total){
 async function adminResetBorrowed(name){
   if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0){ alert("아직 구글시트 연결 전이라 저장이 안 됩니다."); return; }
   try{
-    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_reset", name, password: adminAuthHash }) });
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_reset", name, password: adminPassword }) });
     const data = await res.json();
     if(data.ok){ STOCK[name] = { total: data.total, borrowed: data.borrowed }; render(document.getElementById('search').value); renderAdminList(); }
     else alert(data.error || "처리 실패");
@@ -777,7 +797,7 @@ async function loadAdminLog(){
   const logEl = document.getElementById('adminLog');
   if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0){ logEl.textContent = "아직 구글시트 연결 전입니다."; return; }
   try{
-    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_get_log", password: adminAuthHash }) });
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"admin_get_log", password: adminPassword }) });
     const data = await res.json();
     if(data.ok && data.log){
       logEl.innerHTML = data.log.slice(-30).reverse().map(r =>
