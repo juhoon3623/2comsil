@@ -254,6 +254,39 @@
     .tiles{grid-template-columns:repeat(3,1fr);}
     .rows{grid-template-columns:repeat(2, 1fr);}
   }
+
+  /* ── 수량 입력 창 · 내 대여 현황 · 알림 ── */
+  .my-held{display:inline-block; margin-left:8px; font-size:12px; font-weight:700; color:#6B5CA5; background:#ECE9F4; padding:3px 9px; border-radius:20px;}
+  .my-held:empty{display:none;}
+  .qty-stepper{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
+  .step-btn{width:46px; height:46px; flex-shrink:0; border-radius:10px; border:1.5px solid var(--plastic); background:#F0F1EC; font-size:22px; font-weight:700; color:var(--ink); cursor:pointer;}
+  .step-btn:disabled{opacity:.4; cursor:not-allowed;}
+  .tiny-panel .qty-stepper input{flex:1; width:auto; margin:0; padding:10px 6px; text-align:center; font-size:20px; font-weight:900;}
+  .tiny-primary:disabled{opacity:.6; cursor:wait;}
+  .login-chip .my-btn{display:inline-flex; align-items:center; gap:5px; background:var(--pcb); color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:5px 10px; border-radius:16px;}
+  .my-count{display:inline-block; min-width:18px; padding:0 5px; border-radius:9px; background:var(--sticky); color:#3a2c06; font-size:11px; font-weight:900; text-align:center;}
+  .my-body{max-width:640px; margin:0 auto; padding:22px 16px 60px;}
+  .my-head{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .my-title{font-size:20px; font-weight:900;}
+  .my-who{font-size:13px; color:var(--muted);}
+  .my-section-title{font-size:15px; font-weight:900; margin:26px 0 10px;}
+  .my-row{display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid #EEF0EC;}
+  .my-row:last-child{border-bottom:none;}
+  .my-thumb{flex:0 0 46px; width:46px; height:46px; border-radius:8px; background:#fff; border:1px solid var(--plastic); display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  .my-thumb img{width:100%; height:100%; object-fit:contain; padding:3px;}
+  .my-thumb svg{width:22px; height:22px; stroke:var(--muted);}
+  .my-info{flex:1; min-width:0;}
+  .my-name{font-size:14px; font-weight:700;}
+  .my-meta{font-size:12px; color:var(--muted); margin-top:2px;}
+  .my-actions{display:flex; gap:6px; flex-shrink:0;}
+  .toast{
+    position:fixed; left:50%; bottom:24px; z-index:300; max-width:calc(100% - 32px);
+    transform:translate(-50%, 16px); opacity:0; pointer-events:none;
+    background:var(--ink); color:#fff; padding:11px 16px; border-radius:10px;
+    font-size:13.5px; text-align:center; transition:opacity .2s ease, transform .2s ease;
+  }
+  .toast.show{opacity:1; transform:translate(-50%, 0);}
+  @media (prefers-reduced-motion: reduce){ .toast{transition:none;} }
 </style>
 </head>
 <body>
@@ -298,7 +331,7 @@
     <div class="modal-cat" id="modalCat"></div>
     <div class="modal-name" id="modalName"></div>
     <div class="modal-desc" id="modalDesc"></div>
-    <span class="qty" id="modalQty"></span>
+    <span class="qty" id="modalQty"></span><span class="my-held" id="modalMine"></span>
     <div class="borrow-row">
       <button class="borrow-btn" id="borrowBtn">📦 빌리기</button>
       <button class="return-btn" id="returnBtn">↩️ 반납</button>
@@ -369,9 +402,51 @@
   </div>
 </div>
 
+<!-- 빌리기/반납 수량 입력 창 -->
+<div class="tiny-overlay" id="qtyOverlay">
+  <div class="tiny-panel">
+    <h3 id="qtyTitle"></h3>
+    <p id="qtyInfo"></p>
+    <div class="tiny-error" id="qtyError"></div>
+    <div class="qty-stepper">
+      <button type="button" class="step-btn" id="qtyMinus" aria-label="하나 줄이기">−</button>
+      <input type="number" id="qtyInput" min="1" inputmode="numeric" aria-label="수량">
+      <button type="button" class="step-btn" id="qtyPlus" aria-label="하나 늘리기">+</button>
+    </div>
+    <div class="tiny-actions">
+      <button class="tiny-cancel" id="qtyCancel" type="button">취소</button>
+      <button class="tiny-primary" id="qtyConfirm" type="button">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 내 대여 현황 -->
+<div class="modal-overlay" id="myOverlay">
+  <div class="detail-top">
+    <button class="back-btn" id="myClose" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      닫기
+    </button>
+  </div>
+  <div class="my-body">
+    <div class="my-head">
+      <div class="my-title">내 대여 현황</div>
+      <div class="my-who" id="myWho"></div>
+    </div>
+    <p class="admin-hint" id="mySummary"></p>
+    <div id="myList"></div>
+
+    <div class="my-section-title">다른 부품 빌리기</div>
+    <input type="text" class="admin-search" id="mySearch" placeholder="빌릴 부품 이름으로 검색">
+    <div id="myBorrowList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
 <footer>
-  사진 칸은 아직 실제 사진이 없어 아이콘으로 대체해두었습니다.<br>
-  전수조사 때 찍는 사진으로 순서대로 교체할 예정입니다.
+  사진은 실제 부품과 조금 다를 수 있습니다.<br>
+  자세한 종류와 상태는 2컴퓨터실에서 직접 확인해 주세요.
 </footer>
 
 <script>
@@ -409,29 +484,29 @@ const DATA = [
     {name:"미니 토글 스위치", desc:"손으로 젖혀서 On/Off를 전환하는 작은 스위치", qty:2},
   ]},
   { cat:"출력 장치", icon:"bulb", col:"#C97A2E", tint:"#F7ECDF", items:[
-    {name:"LED", desc:"전류가 흐르면 빛을 내는 발광 소자.\n빨간색 250개 · 초록색 227개 · 파란색 101개 · 노란색 254개 · 흰색 45개\nRGB LED(4핀) 38개 · 검은색 RGB LED 모듈 20개 · 빨간색 RGB LED 모듈 1개", qty:936},
-    {name:"세그먼트(캐소드)", desc:"숫자를 표시하는 데 쓰는 7세그먼트 디스플레이.\n3611AS 26개 · 5161AS 13개 · 3461AS-1 28개 · SH5461AS 12개", qty:79},
+    {name:"LED", desc:"전류가 흐르면 빛을 내는 발광 소자.\n(빨간색, 초록색, 파란색, 노란색, 흰색 LED와 4핀 RGB LED, RGB LED 모듈 종류가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:936},
+    {name:"세그먼트(캐소드)", desc:"숫자를 표시하는 데 쓰는 7세그먼트 디스플레이.\n(3611AS, 5161AS, 3461AS-1, SH5461AS 종류가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:79},
     {name:"1602 LCD (납땜 완료)", desc:"영문·숫자 2줄(16자×2줄)을 표시할 수 있는 액정 디스플레이", qty:37},
-    {name:"8×8 도트매트릭스", desc:"LED를 8×8 격자로 배열해 간단한 그림·문자를 표시하는 디스플레이.\nMAX7219 드라이버 모듈 포함 7개 · 1088BS 22개 · 1588AS 3개", qty:32},
-    {name:"부저", desc:"소리를 내는 출력 장치.\n능동 부저 32개 · 수동 부저 28개", qty:60},
+    {name:"8×8 도트매트릭스", desc:"LED를 8×8 격자로 배열해 간단한 그림·문자를 표시하는 디스플레이.\n(MAX7219 드라이버 모듈 포함형, 1088BS, 1588AS 종류가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:32},
+    {name:"부저", desc:"소리를 내는 출력 장치.\n(능동 부저, 수동 부저 종류가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:60},
   ]},
   { cat:"통신·인식·시간 모듈", icon:"signal", col:"#6B5CA5", tint:"#ECE9F4", items:[
-    {name:"13.56 RFID 모듈", desc:"근거리 무선 태그(카드)를 인식하는 모듈.\nRFID 모듈(리더기) 23개 · RFID 태그 22개 · RFID 카드 22개", qty:67},
+    {name:"13.56 RFID 모듈", desc:"근거리 무선 태그(카드)를 인식하는 모듈.\n(RFID 리더기, RFID 태그, RFID 카드가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:67},
     {name:"DS1302", desc:"날짜와 시간을 기록·유지하는 실시간 시계(RTC) 모듈", qty:25},
     {name:"5V 릴레이 모듈", desc:"작은 신호로 큰 전류가 흐르는 장치를 켜고 끄는 스위치 모듈", qty:25},
     {name:"SIM800L 모듈", desc:"SIM카드를 꽂아 문자·통화 등 이동통신 기능을 사용할 수 있게 해주는 통신 모듈", qty:1},
   ]},
   { cat:"제어 보드", icon:"board", col:"#4A5568", tint:"#E9EAEC", items:[
-    {name:"아두이노 보드", desc:"센서·모듈을 제어하는 마이크로컨트롤러 보드.\nUNO 15개 · UNO R3 호환보드 7개 · 나노 호환보드 3개\nUNO R3보드 1개 · UNO 교육용 확장보드 1개", qty:27},
+    {name:"아두이노 보드", desc:"센서·모듈을 제어하는 마이크로컨트롤러 보드.\n(UNO, UNO R3, UNO R3 호환보드, 나노 호환보드, UNO 교육용 확장보드 종류가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:27},
     {name:"마이크로컨트롤러 보드", desc:"센서 신호를 처리·제어하는 소형 제어 보드", qty:1},
     {name:"ESP32-CAM", desc:"카메라가 내장된 Wi-Fi 지원 마이크로컨트롤러 보드", qty:2},
   ]},
   { cat:"전원·전력 부품", icon:"battery", col:"#B5502E", tint:"#F6E7E0", items:[
     {name:"전원 공급 모듈", desc:"회로에 필요한 전압을 공급하는 모듈", qty:3},
     {name:"9V 건전지 어댑터", desc:"9V 건전지를 회로 전원으로 연결하는 커넥터", qty:35},
-    {name:"건전지 홀더", desc:"건전지를 고정하고 전원을 연결하는 부품.\n6×AA용 4개 · 4×AA용 4개 · 3×AA용 1개", qty:9},
+    {name:"건전지 홀더", desc:"건전지를 고정하고 전원을 연결하는 부품.\n(AA 건전지 6개용, 4개용, 3개용 종류가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:9},
     {name:"가변저항", desc:"손으로 돌려 저항 값을 조절할 수 있는 부품", qty:45},
-    {name:"저항", desc:"전류의 흐름을 제한하는 기본 전자 부품.\n220Ω 159개 · 10kΩ 82개 · 220Ω(파란색) 46개\n1kΩ 41개 · 330Ω 11개 · 색띠 불명 1개", qty:340},
+    {name:"저항", desc:"전류의 흐름을 제한하는 기본 전자 부품.\n(220Ω, 330Ω, 1kΩ, 10kΩ 등 여러 저항값이 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:340},
     {name:"2N2222 트랜지스터", desc:"스위칭·증폭에 자주 쓰이는 범용 NPN 트랜지스터 모델", qty:18},
     {name:"고전압 펄스 발생기", desc:"낮은 전압을 순간적으로 높은 전압 펄스로 바꿔 방출하는 장치", qty:1},
   ]},
@@ -444,7 +519,7 @@ const DATA = [
     {name:"코인형 진동모터", desc:"동전 모양의 작고 납작한 진동 모터로, 휴대기기 진동 기능 등에 사용됨", qty:4},
   ]},
   { cat:"부속·소모품", icon:"grid", col:"#5C7A78", tint:"#E7EEED", items:[
-    {name:"브레드보드", desc:"납땜 없이 회로를 구성할 수 있는 실습용 보드.\n소형 21개 · 중형 10개 · 대형 24개", qty:55},
+    {name:"브레드보드", desc:"납땜 없이 회로를 구성할 수 있는 실습용 보드.\n(소형, 중형, 대형 종류가 있음. 자세한 건 컴퓨터실에 와서 확인해야 함)", qty:55},
     {name:"세라믹 캐패시터", desc:"전하를 저장했다가 필요할 때 방출하는 부품", qty:9},
     {name:"핀헤더 (1×40)", desc:"부품과 보드를 연결할 때 쓰는 핀 형태의 커넥터", qty:15},
     {name:"74HC595", desc:"적은 핀으로 여러 출력을 제어할 수 있게 해주는 시프트 레지스터 IC", qty:39},
@@ -530,11 +605,12 @@ function iconSvg(key, strokeW){ return `<svg viewBox="0 0 24 24" fill="none" str
 
 // ── 대여 시스템: 구글 시트 연동 ──
 // 아래 URL을 배포된 구글 앱스 스크립트 웹앱 주소로 교체하세요.
-const API_URL = "https://script.google.com/macros/s/AKfycbw9He8Suf_U5bGIcyVJqnGI69FWXGkWJ0ChO76fgMOiLyikeYXmqIjZcFsgkMJnHCtC/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbztuMw6uxqMqiIg2KqLoUT2Neu1HGVnGovvf8j0lQVao9LhaYIkwC6VLhxRHuud26o1/exec";
 // 관리자 비밀번호는 사이트에 저장하지 않고 구글 서버(Apps Script)에서만 확인함
 let adminPassword = null; // 관리자 로그인에 성공하면 관리자 창이 열려 있는 동안만 기억함
 
 let currentStudentId = null; // 로그인한 학번 (세션 동안만 유지, 새로고침하면 초기화됨)
+let MY_LOANS = []; // 로그인한 학생이 지금 빌린 목록 [{name, qty, since}]
 let pendingAction = null;    // 로그인 팝업 이후 실행할 대여/반납 동작
 
 let STOCK = {}; // { "항목명": { total, borrowed } }
@@ -558,34 +634,6 @@ async function loadStock(){
   }catch(err){
     console.log("재고 정보를 불러오지 못했습니다.", err);
   }
-}
-
-async function changeStock(name, action){
-  const before = STOCK[name] ? {...STOCK[name]} : null;
-  // 낙관적 업데이트(즉시 화면 반영)
-  if(STOCK[name]){
-    if(action === "borrow" && STOCK[name].borrowed < STOCK[name].total) STOCK[name].borrowed++;
-    if(action === "return" && STOCK[name].borrowed > 0) STOCK[name].borrowed--;
-  }
-  render(document.getElementById('search').value);
-  if(currentModalItem) refreshModalStock(currentModalItem);
-
-  if(API_URL.indexOf("YOUR_APPS_SCRIPT_URL") === 0) return; // 아직 연결 전이면 로컬 반영만
-  try{
-    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ name, action, studentId: currentStudentId }) });
-    const data = await res.json();
-    if(data.ok){
-      STOCK[name] = { total: data.total, borrowed: data.borrowed };
-    } else {
-      if(before) STOCK[name] = before; // 실패 시 되돌리기
-      alert(data.error || "저장에 실패했습니다.");
-    }
-  }catch(err){
-    if(before) STOCK[name] = before;
-    alert("서버에 연결하지 못해 저장되지 않았습니다.\n(" + err.message + ")");
-  }
-  render(document.getElementById('search').value);
-  if(currentModalItem) refreshModalStock(currentModalItem);
 }
 
 const tilesEl = document.getElementById('tiles');
@@ -707,12 +755,15 @@ function refreshModalStock(name){
     modalQty.className = "qty unknown";
   }
   borrowBtn.disabled = (avail === 0);
+  const held = currentStudentId ? myHeld(name) : 0;
+  document.getElementById('modalMine').textContent = held > 0 ? `내가 빌린 수량 ${held}개` : "";
   const s = STOCK[name];
-  returnBtn.disabled = !s || s.borrowed <= 0;
+  // 로그인 전: 누군가 빌린 게 있으면 반납 버튼을 열어 둠 / 로그인 후: 내가 빌린 게 있을 때만 열어 둠
+  returnBtn.disabled = currentStudentId ? held <= 0 : (!s || s.borrowed <= 0);
 }
 
-borrowBtn.addEventListener('click', () => { if(currentModalItem) requireLogin(() => changeStock(currentModalItem, "borrow")); });
-returnBtn.addEventListener('click', () => { if(currentModalItem) requireLogin(() => changeStock(currentModalItem, "return")); });
+borrowBtn.addEventListener('click', () => { if(currentModalItem) requireLogin(() => openQtyDialog(currentModalItem, "borrow")); });
+returnBtn.addEventListener('click', () => { if(currentModalItem) requireLogin(() => openQtyDialog(currentModalItem, "return")); });
 
 // ── 학번 로그인 ──
 const loginArea = document.getElementById('loginArea');
@@ -722,10 +773,17 @@ const loginError = document.getElementById('loginError');
 
 function renderLoginArea(){
   if(currentStudentId){
-    loginArea.innerHTML = `<div class="login-chip">학번 <span class="id">${currentStudentId}</span><button id="logoutBtn">로그아웃</button></div>`;
+    const count = MY_LOANS.reduce((sum, l) => sum + l.qty, 0);
+    loginArea.innerHTML = `<div class="login-chip">학번 <span class="id">${currentStudentId}</span>`
+      + `<button class="my-btn" id="myLoansBtn" type="button">📋 내 대여 현황${count ? `<span class="my-count">${count}</span>` : ""}</button>`
+      + `<button id="logoutBtn" type="button">로그아웃</button></div>`;
+    document.getElementById('myLoansBtn').addEventListener('click', () => openMyPanel());
     document.getElementById('logoutBtn').addEventListener('click', () => {
       currentStudentId = null;
+      MY_LOANS = [];
+      document.getElementById('myOverlay').classList.remove('open');
       renderLoginArea();
+      if(currentModalItem) refreshModalStock(currentModalItem);
     });
   } else {
     loginArea.innerHTML = `<button class="subbar-btn" id="loginBtn">👤 학번 입력</button>`;
@@ -754,9 +812,13 @@ document.getElementById('loginConfirm').addEventListener('click', () => {
     return;
   }
   currentStudentId = val;
-  renderLoginArea();
+  MY_LOANS = [];
   loginOverlay.classList.remove('open');
-  if(pendingAction){ pendingAction(); pendingAction = null; }
+  const action = pendingAction;
+  pendingAction = null;
+  renderLoginArea();
+  loadMyLoans();
+  if(action) action();
 });
 loginInput.addEventListener('keydown', e => { if(e.key === 'Enter') document.getElementById('loginConfirm').click(); });
 renderLoginArea();
@@ -1100,6 +1162,230 @@ function openModal(group, item){
 function closeModal(){ modalOverlay.classList.remove('open'); }
 document.getElementById('modalClose').addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', e => { if(e.target === modalOverlay) closeModal(); });
+
+// ── 내 대여 현황 · 수량을 골라서 빌리기/반납 ──
+const myOverlay = document.getElementById('myOverlay');
+const qtyOverlay = document.getElementById('qtyOverlay');
+const qtyInput = document.getElementById('qtyInput');
+const qtyError = document.getElementById('qtyError');
+const qtyConfirmBtn = document.getElementById('qtyConfirm');
+let qtyState = null;   // { name, action, max }
+let myLoading = false;
+let toastTimer = null;
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function myHeld(name){
+  const l = MY_LOANS.find(x => x.name === name);
+  return l ? l.qty : 0;
+}
+
+function findItem(name){
+  for(const g of DATA){
+    const it = g.items.find(i => i.name === name);
+    if(it) return { group: g, item: it };
+  }
+  return null;
+}
+function thumbFor(name){
+  const photo = IMAGES[name];
+  if(photo) return `<img src="${photo}" alt="">`;
+  const f = findItem(name);
+  return iconSvg(f ? f.group.icon : "grid", 1.6);
+}
+
+async function loadMyLoans(){
+  if(!currentStudentId){ MY_LOANS = []; updateMyUI(); return; }
+  const sid = currentStudentId;
+  try{
+    const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action:"my_loans", studentId: sid }) });
+    const data = await res.json();
+    if(data.ok && currentStudentId === sid) MY_LOANS = data.loans || [];
+  }catch(err){
+    console.log("내 대여 현황을 불러오지 못했습니다.", err);
+  }
+  updateMyUI();
+}
+
+function updateMyUI(){
+  renderLoginArea();
+  if(currentModalItem) refreshModalStock(currentModalItem);
+  if(myOverlay.classList.contains('open')) renderMyPanel();
+}
+
+async function submitLoan(name, action, qty){
+  const res = await fetch(API_URL, { method:"POST", body: JSON.stringify({ action, name, qty, studentId: currentStudentId }) });
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || "처리하지 못했습니다.");
+  STOCK[name] = { total: data.total, borrowed: data.borrowed };
+  if(data.mine) MY_LOANS = data.mine;
+  render(document.getElementById('search').value);
+  updateMyUI();
+}
+
+// 수량 입력 창
+async function openQtyDialog(name, action){
+  if(action === "borrow"){
+    const avail = available(name) || 0;
+    if(avail <= 0){ showToast(`'${name}'은(는) 지금 남은 수량이 없습니다.`); return; }
+    qtyState = { name, action, max: avail };
+    document.getElementById('qtyTitle').textContent = `${name} 빌리기`;
+    document.getElementById('qtyInfo').textContent = `몇 개 빌릴지 입력해 주세요. (남은 수량 ${avail}개)`;
+    qtyInput.value = 1;
+    qtyConfirmBtn.textContent = "빌리기";
+  } else {
+    let held = myHeld(name);
+    if(held <= 0){
+      showToast("내 대여 현황을 확인하는 중...");
+      await loadMyLoans();
+      held = myHeld(name);
+    }
+    if(held <= 0){ showToast(`학번 ${currentStudentId}(으)로 빌린 '${name}'이(가) 없습니다.`); return; }
+    qtyState = { name, action, max: held };
+    document.getElementById('qtyTitle').textContent = `${name} 반납`;
+    document.getElementById('qtyInfo').textContent = `지금 빌린 수량은 ${held}개입니다. 몇 개 반납할지 입력해 주세요.`;
+    qtyInput.value = held;
+    qtyConfirmBtn.textContent = "반납하기";
+  }
+  qtyInput.min = 1;
+  qtyInput.max = qtyState.max;
+  qtyError.style.display = "none";
+  updateStepButtons();
+  qtyOverlay.classList.add('open');
+  setTimeout(() => { qtyInput.focus(); qtyInput.select(); }, 50);
+}
+function closeQtyDialog(){ qtyOverlay.classList.remove('open'); qtyState = null; }
+function updateStepButtons(){
+  const v = Number(qtyInput.value) || 0;
+  document.getElementById('qtyMinus').disabled = v <= 1;
+  document.getElementById('qtyPlus').disabled = !qtyState || v >= qtyState.max;
+}
+document.getElementById('qtyMinus').addEventListener('click', () => {
+  qtyInput.value = Math.max(1, (Number(qtyInput.value) || 1) - 1);
+  updateStepButtons();
+});
+document.getElementById('qtyPlus').addEventListener('click', () => {
+  if(!qtyState) return;
+  qtyInput.value = Math.min(qtyState.max, (Number(qtyInput.value) || 0) + 1);
+  updateStepButtons();
+});
+qtyInput.addEventListener('input', updateStepButtons);
+qtyInput.addEventListener('keydown', e => { if(e.key === 'Enter') qtyConfirmBtn.click(); });
+document.getElementById('qtyCancel').addEventListener('click', closeQtyDialog);
+qtyConfirmBtn.addEventListener('click', async () => {
+  if(!qtyState || qtyConfirmBtn.disabled) return;
+  const { name, action, max } = qtyState;
+  const qty = Number(qtyInput.value);
+  if(!Number.isInteger(qty) || qty < 1 || qty > max){
+    qtyError.textContent = `1개부터 ${max}개까지 입력할 수 있습니다.`;
+    qtyError.style.display = "block";
+    return;
+  }
+  const label = qtyConfirmBtn.textContent;
+  qtyConfirmBtn.disabled = true;
+  qtyConfirmBtn.textContent = "처리 중...";
+  try{
+    await submitLoan(name, action, qty);
+    closeQtyDialog();
+    showToast(action === "borrow" ? `'${name}' ${qty}개를 빌렸습니다.` : `'${name}' ${qty}개를 반납했습니다.`);
+  }catch(err){
+    qtyError.textContent = (err instanceof TypeError)
+      ? "서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."
+      : (err instanceof SyntaxError) ? "서버 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요." : err.message;
+    qtyError.style.display = "block";
+    loadStock();
+  }finally{
+    qtyConfirmBtn.disabled = false;
+    qtyConfirmBtn.textContent = label;
+  }
+});
+
+// 내 대여 현황 창
+async function openMyPanel(){
+  if(!currentStudentId){ openLogin(); return; }
+  document.getElementById('mySearch').value = "";
+  myOverlay.classList.add('open');
+  myLoading = true;
+  renderMyPanel();
+  await Promise.all([loadMyLoans(), loadStock()]);
+  myLoading = false;
+  renderMyPanel();
+}
+document.getElementById('myClose').addEventListener('click', () => myOverlay.classList.remove('open'));
+document.getElementById('mySearch').addEventListener('input', e => renderMyBorrowList(e.target.value));
+
+function renderMyPanel(){
+  if(!currentStudentId) return;
+  document.getElementById('myWho').textContent = `${describeStudent(currentStudentId)} (${currentStudentId})`;
+  const listEl = document.getElementById('myList');
+  const sumEl = document.getElementById('mySummary');
+  if(myLoading){
+    sumEl.textContent = "";
+    listEl.innerHTML = '<div class="empty-note">불러오는 중...</div>';
+  } else if(MY_LOANS.length === 0){
+    sumEl.textContent = "";
+    listEl.innerHTML = '<div class="empty-note">지금 빌린 물품이 없습니다. 아래에서 부품을 검색해 빌릴 수 있습니다.</div>';
+  } else {
+    const total = MY_LOANS.reduce((sum, l) => sum + l.qty, 0);
+    sumEl.textContent = `지금 ${MY_LOANS.length}종 ${total}개를 빌린 상태입니다.`;
+    const loans = MY_LOANS.slice().sort((a,b) => String(a.name).localeCompare(String(b.name), 'ko'));
+    listEl.innerHTML = '<div class="student-card">' + loans.map(l => `
+      <div class="my-row">
+        <div class="my-thumb">${thumbFor(l.name)}</div>
+        <div class="my-info">
+          <div class="my-name">${esc(l.name)}</div>
+          <div class="my-meta">${l.qty}개 빌림${l.since ? ` (${esc(l.since)})` : ""}</div>
+        </div>
+        <div class="my-actions">
+          <button class="btn-sm btn-ghost" type="button" data-act="return" data-name="${esc(l.name)}">반납</button>
+          <button class="btn-sm btn-save" type="button" data-act="borrow" data-name="${esc(l.name)}" ${(available(l.name) || 0) > 0 ? "" : "disabled"}>더 빌리기</button>
+        </div>
+      </div>`).join("") + '</div>';
+    listEl.querySelectorAll('button[data-act]').forEach(b => {
+      b.addEventListener('click', () => openQtyDialog(b.dataset.name, b.dataset.act));
+    });
+  }
+  renderMyBorrowList(document.getElementById('mySearch').value);
+}
+
+function renderMyBorrowList(filter){
+  const q = (filter||"").trim().toLowerCase();
+  const el = document.getElementById('myBorrowList');
+  if(!q){
+    el.innerHTML = '<div class="empty-note">부품 이름을 입력하면 여기서 바로 빌릴 수 있습니다.</div>';
+    return;
+  }
+  const results = [];
+  DATA.forEach(g => g.items.forEach(it => { if(it.name.toLowerCase().includes(q)) results.push(it); }));
+  if(results.length === 0){
+    el.innerHTML = '<div class="empty-note">검색 결과가 없습니다.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="student-card">' + results.slice(0, 10).map(it => {
+    const avail = available(it.name) || 0;
+    return `
+      <div class="my-row">
+        <div class="my-thumb">${thumbFor(it.name)}</div>
+        <div class="my-info">
+          <div class="my-name">${esc(it.name)}</div>
+          <div class="my-meta">남은 수량 ${avail}개</div>
+        </div>
+        <div class="my-actions">
+          <button class="btn-sm btn-save" type="button" data-name="${esc(it.name)}" ${avail > 0 ? "" : "disabled"}>빌리기</button>
+        </div>
+      </div>`;
+  }).join("") + '</div>';
+  el.querySelectorAll('button[data-name]').forEach(b => {
+    b.addEventListener('click', () => openQtyDialog(b.dataset.name, "borrow"));
+  });
+}
+
 
 render("");
 loadStock();
